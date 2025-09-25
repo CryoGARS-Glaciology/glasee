@@ -592,23 +592,23 @@ def calculate_snow_cover_statistics(image_collection: ee.ImageCollection,
         fileFormat='CSV', 
         )
 
-    # evaluate number of tasks in queue
-    def check_queue():
-        in_queue = 0
-        for task in ee.batch.Task.list():
-            if (task.state == 'READY') or (task.state == 'RUNNING'):
-                in_queue += 1 # count the queue
-        return in_queue
+    # # evaluate number of tasks in queue
+    # def check_queue():
+    #     in_queue = 0
+    #     for task in ee.batch.Task.list():
+    #         if (task.state == 'READY') or (task.state == 'RUNNING'):
+    #             in_queue += 1 # count the queue
+    #     return in_queue
     
-    # wait until task queue is < 3000
-    queue = check_queue() # check length of queue
-    while queue >= 2998: # while it's 3000 or more
-        #estimate processing time & wait for that long
-        sleep_time = 30*int(np.sqrt(aoi.area().getInfo()/1e6))
-        print(f"sleep time = {sleep_time} s")
+    # # wait until task queue is < 3000
+    # queue = check_queue() # check length of queue
+    # while queue >= 2998: # while it's 3000 or more
+    #     #estimate processing time & wait for that long
+    #     sleep_time = 30*int(np.sqrt(aoi.area().getInfo()/1e6))
+    #     print(f"sleep time = {sleep_time} s")
         
-        time.sleep(sleep_time) # wait specified time in seconds based on glacier area
-        queue = check_queue() # keep checking
+    #     time.sleep(sleep_time) # wait specified time in seconds based on glacier area
+    #     queue = check_queue() # keep checking
         
     task.start()
 
