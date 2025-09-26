@@ -591,7 +591,7 @@ def calculate_snow_cover_statistics(image_collection: ee.ImageCollection,
         fileNamePrefix=alt_fileName, #default is file_name_prefix, change for testing
         fileFormat='CSV', 
         )
-
+    
     # # evaluate number of tasks in queue
     # def check_queue():
     #     in_queue = 0
@@ -609,8 +609,19 @@ def calculate_snow_cover_statistics(image_collection: ee.ImageCollection,
         
     #     time.sleep(sleep_time) # wait specified time in seconds based on glacier area
     #     queue = check_queue() # keep checking
-        
-    task.start()
+
+    ## Default: run all tasks
+    # task.start()
+    ##OPTIONAL: If looking at ~monthly periods, run the task straight away because there are likely data but if the time period is short then check if the output will be empty
+    aoi_area = ee.Number(aoi.area()).getInfo()
+    if aoi_area < 150e6:
+        task.start()
+    else: #check if the output is empty because there are no images
+        if statistics.size().getInfo() > 0:
+            task.start()
+            # print("Export task started for non-empty data.")
+        # else:
+        #     print("FeatureCollection is empty. No export initiated.")
 
     if verbose:
         print(f'Exporting snow cover statistics to {out_folder} Google Drive folder with file name: {file_name_prefix}')
