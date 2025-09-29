@@ -592,36 +592,36 @@ def calculate_snow_cover_statistics(image_collection: ee.ImageCollection,
         fileFormat='CSV', 
         )
     
-    # # evaluate number of tasks in queue
-    # def check_queue():
-    #     in_queue = 0
-    #     for task in ee.batch.Task.list():
-    #         if (task.state == 'READY') or (task.state == 'RUNNING'):
-    #             in_queue += 1 # count the queue
-    #     return in_queue
+    # evaluate number of tasks in queue
+    def check_queue():
+        in_queue = 0
+        for task in ee.batch.Task.list():
+            if (task.state == 'READY') or (task.state == 'RUNNING'):
+                in_queue += 1 # count the queue
+        return in_queue
     
-    # # wait until task queue is < 3000
-    # queue = check_queue() # check length of queue
-    # while queue >= 2998: # while it's 3000 or more
-    #     #estimate processing time & wait for that long
-    #     sleep_time = 30*int(np.sqrt(aoi.area().getInfo()/1e6))
-    #     print(f"sleep time = {sleep_time} s")
+    # wait until task queue is < 3000
+    queue = check_queue() # check length of queue
+    while queue >= 2998: # while it's 3000 or more
+        #estimate processing time & wait for that long
+        sleep_time = 30*int(np.sqrt(aoi.area().getInfo()/1e6))
+        print(f"sleep time = {sleep_time} s")
         
-    #     time.sleep(sleep_time) # wait specified time in seconds based on glacier area
-    #     queue = check_queue() # keep checking
+        time.sleep(sleep_time) # wait specified time in seconds based on glacier area
+        queue = check_queue() # keep checking
 
     ## Default: run all tasks
-    # task.start()
+    task.start()
     ##OPTIONAL: If looking at ~monthly periods, run the task straight away because there are likely data but if the time period is short then check if the output will be empty
-    aoi_area = ee.Number(aoi.area()).getInfo()
-    if aoi_area < 150e6:
-        task.start()
-    else: #check if the output is empty because there are no images
-        if statistics.size().getInfo() > 0:
-            task.start()
-            # print("Export task started for non-empty data.")
-        # else:
-        #     print("FeatureCollection is empty. No export initiated.")
+    # aoi_area = ee.Number(aoi.area()).getInfo()
+    # if aoi_area < 150e6:
+    #     task.start()
+    # else: #check if the output is empty because there are no images
+    #     if statistics.size().getInfo() > 0:
+    #         task.start()
+    #         # print("Export task started for non-empty data.")
+    #     # else:
+    #     #     print("FeatureCollection is empty. No export initiated.")
 
     if verbose:
         print(f'Exporting snow cover statistics to {out_folder} Google Drive folder with file name: {file_name_prefix}')
@@ -718,17 +718,18 @@ def run_classification_pipeline(aoi: ee.Geometry.Polygon = None,
         image_collection = query_gee_for_imagery(dataset, aoi, date_range[0], date_range[1], month_start, month_end, 
                                                  min_aoi_coverage, mask_clouds, scale, verbose=verbose)
 
-        # #if the image collection is empty, let the user know
-        # is_empty_test = image_collection.size().eq(0).getInfo()
-        # if is_empty_test == 1:
-        #     print(f"no images returned")
-        
-        # Classify image collection
-        classified_collection = classify_image_collection(image_collection, dataset, verbose=verbose)
-    
-        # Calculate snow cover statistics, export to Google Drive
-        _ = calculate_snow_cover_statistics(classified_collection, dem, aoi, dataset, scale, out_folder,
-                                            file_name_prefix=f"{glac_id}_{dataset}_snow_cover_stats_{date_range[0]}_{date_range[1]}",
-                                            verbose=verbose)
+        #if the image collection is empty, let the user know
+        # is_empty_test = image_collection.size().getInfo() #was image_collection.size().eq(0).getInfo()
+        try:
+            is_empty_test = image_collection.size().eq(0).getInfo()
+            if is_empty_test != 1:
+                # Classify image collection
+                classified_collection = classify_image_collection(image_collection,dataset, verbose=verbose)
+                
+                # Calculate snow cover statistics, export to Google Drive
+                _ = calculate_snow_cover_statistics(classified_collection, dem, aoi,dataset, scale, out_folder,file_name_prefix=f"{glac_id}_{dataset}_snow_cover_stats_{date_range[0]}_{date_range[1]}",verbose=verbose)
+        except EEException as exc:
+            continue
+
 
 
