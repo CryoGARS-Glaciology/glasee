@@ -718,18 +718,23 @@ def run_classification_pipeline(aoi: ee.Geometry.Polygon = None,
         image_collection = query_gee_for_imagery(dataset, aoi, date_range[0], date_range[1], month_start, month_end, 
                                                  min_aoi_coverage, mask_clouds, scale, verbose=verbose)
 
-        #if the image collection is empty, let the user know
-        # is_empty_test = image_collection.size().getInfo() #was image_collection.size().eq(0).getInfo()
-        try:
-            is_empty_test = image_collection.size().eq(0).getInfo()
-            if is_empty_test != 1:
-                # Classify image collection
-                classified_collection = classify_image_collection(image_collection,dataset, verbose=verbose)
+        #if the image collection is empty, move along: only check for glaciers with daily date ranges to minimize memory-related issues checking large datasets
+        # if aoi_area > 150e6:
+        #     try:
+        #         is_empty_test = image_collection.size().eq(0).getInfo()
+        #         if is_empty_test != 1:
+        #             # Classify image collection
+        #             classified_collection = classify_image_collection(image_collection,dataset, verbose=verbose)
+                    
+        #             # Calculate snow cover statistics, export to Google Drive
+        #             _ = calculate_snow_cover_statistics(classified_collection, dem, aoi,dataset, scale, out_folder,file_name_prefix=f"{glac_id}_{dataset}_snow_cover_stats_{date_range[0]}_{date_range[1]}",verbose=verbose)
+        #     except EEException as exc:
+        #         continue
+        # else:
+        # Classify image collection
+        classified_collection = classify_image_collection(image_collection,dataset, verbose=verbose)
                 
-                # Calculate snow cover statistics, export to Google Drive
-                _ = calculate_snow_cover_statistics(classified_collection, dem, aoi,dataset, scale, out_folder,file_name_prefix=f"{glac_id}_{dataset}_snow_cover_stats_{date_range[0]}_{date_range[1]}",verbose=verbose)
-        except EEException as exc:
-            continue
-
+        # Calculate snow cover statistics, export to Google Drive
+        _ = calculate_snow_cover_statistics(classified_collection, dem, aoi,dataset, scale, out_folder,file_name_prefix=f"{glac_id}_{dataset}_snow_cover_stats_{date_range[0]}_{date_range[1]}",verbose=verbose)
 
 
