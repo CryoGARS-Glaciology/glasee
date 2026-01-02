@@ -592,23 +592,23 @@ def calculate_snow_cover_statistics(image_collection: ee.ImageCollection,
         fileFormat='CSV', 
         )
     
-    # evaluate number of tasks in queue
-    def check_queue():
-        in_queue = 0
-        for task in ee.batch.Task.list():
-            if (task.state == 'READY') or (task.state == 'RUNNING'):
-                in_queue += 1 # count the queue
-        return in_queue
+    # # evaluate number of tasks in queue
+    # def check_queue():
+    #     in_queue = 0
+    #     for task in ee.batch.Task.list():
+    #         if (task.state == 'READY') or (task.state == 'RUNNING'):
+    #             in_queue += 1 # count the queue
+    #     return in_queue
     
-    # wait until task queue is < 3000
-    queue = check_queue() # check length of queue
-    while queue >= 2998: # while it's 3000 or more
-        #estimate processing time & wait for that long
-        sleep_time = 30*int(np.sqrt(aoi.area().getInfo()/1e6))
-        print(f"sleep time = {sleep_time} s")
+    # # wait until task queue is < 3000
+    # queue = check_queue() # check length of queue
+    # while queue >= 2998: # while it's 3000 or more
+    #     #estimate processing time & wait for that long
+    #     sleep_time = 30*int(np.sqrt(aoi.area().getInfo()/1e6))
+    #     print(f"sleep time = {sleep_time} s")
         
-        time.sleep(sleep_time) # wait specified time in seconds based on glacier area
-        queue = check_queue() # keep checking
+    #     time.sleep(sleep_time) # wait specified time in seconds based on glacier area
+    #     queue = check_queue() # keep checking
 
     ## Default: run all tasks
     task.start()
@@ -627,6 +627,13 @@ def calculate_snow_cover_statistics(image_collection: ee.ImageCollection,
         print(f'Exporting snow cover statistics to {out_folder} Google Drive folder with file name: {file_name_prefix}')
 
     return task
+
+def check_queue():
+    in_queue = 0
+    for task in ee.batch.Task.list():
+        if (task.state == 'READY') or (task.state == 'RUNNING'):
+            in_queue += 1 # count the queue
+    return in_queue
 
 
 def run_classification_pipeline(aoi: ee.Geometry.Polygon = None, 
@@ -712,8 +719,27 @@ def run_classification_pipeline(aoi: ee.Geometry.Polygon = None,
           f"{glac_id}_{dataset}_snow_cover_stats_DATE-START_DATE-END.csv")
     print('To monitor export tasks, see your Google Cloud Console or GEE Task Manager: https://code.earthengine.google.com/tasks')
     print('Iterating over date ranges...')
+
+    im_count = 1
     for date_range in tqdm(date_ranges):
-    
+        # check the queue and pause tasks as needed
+        if im_count == 1:
+            print('checking queue length')
+            queue = check_queue() # check length of queue
+            while queue >= 2498: # run in batches, not exceeding 2999 in the queue
+                #wait to re-check
+                # sleep_time = 30*int(np.sqrt(aoi.area().getInfo()/1e6)) #estimate processing time based on glacier area 
+                # print(f"sleep time = {sleep_time} s")
+                sleep_time = 300 #wait 5 minutes
+                
+                time.sleep(sleep_time) # wait specified time in seconds based on glacier area
+                queue = check_queue() # keep checking
+        elif im_count == 499:
+            im_count = 0
+        
+        # advance the image counter
+        im_count += 1
+        
         # Query GEE for imagery
         image_collection = query_gee_for_imagery(dataset, aoi, date_range[0], date_range[1], month_start, month_end, 
                                                  min_aoi_coverage, mask_clouds, scale, verbose=verbose)
@@ -737,4 +763,5 @@ def run_classification_pipeline(aoi: ee.Geometry.Polygon = None,
         # Calculate snow cover statistics, export to Google Drive
         _ = calculate_snow_cover_statistics(classified_collection, dem, aoi,dataset, scale, out_folder,file_name_prefix=f"{glac_id}_{dataset}_snow_cover_stats_{date_range[0]}_{date_range[1]}",verbose=verbose)
 
+        
 
