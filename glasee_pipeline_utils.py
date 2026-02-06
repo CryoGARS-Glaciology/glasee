@@ -730,7 +730,10 @@ def run_classification_pipeline(aoi: ee.Geometry.Polygon = None,
                 #wait to re-check
                 # sleep_time = 30*int(np.sqrt(aoi.area().getInfo()/1e6)) #estimate processing time based on glacier area 
                 # print(f"sleep time = {sleep_time} s")
-                sleep_time = 300 #wait 5 minutes
+                if aoi_area > 150e6:
+                    sleep_time = 300 #wait 5 minutes between checks
+                else:
+                    sleep_time = 30 #wait 30 seconds between checks
                 
                 time.sleep(sleep_time) # wait specified time in seconds based on glacier area
                 queue = check_queue() # keep checking
