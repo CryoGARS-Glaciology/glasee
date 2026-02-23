@@ -7,24 +7,28 @@ Rainey Aberle
 import ee
 import geedim as gd
 import datetime
-import time
 import numpy as np
-import re
 from tqdm import tqdm
 
-# Grab current datetime for default file name if none is provided
-current_datetime = datetime.datetime.now()
-current_datetime_str = str(current_datetime).replace(' ','').replace(':','').replace('-','').replace('.','')
-
-def query_gee_for_dem(aoi):
+def query_gee_for_dem(
+        aoi: ee.Geometry = None, 
+        folder: str = None, 
+        rgi_id: str = None
+        ):
     """
     Query GEE for digital elevation model (DEM) over study site. If the study site is within the ArcticDEM coverage,
-    use the ArcticDEM V3 2m mosaic. Otherwise, use NASADEM.
+    use the ArcticDEM V3 2m mosaic. Otherwise, use NASADEM. 
+    
+    Optional: download the cropped DEM to your Google Drive by specifying "folder" and "rgi_id". 
 
     Parameters
     ----------
     aoi: ee.Geometry
         Area of interest (AOI) to query for DEM.
+    folder: str
+        Name of the output folder in your Google Drive where the cropped DEM will be saved.
+    rgi_id: str
+        RGI ID or other AOI label for the output file name. 
     
     Returns
     ----------
@@ -82,10 +86,25 @@ def query_gee_for_dem(aoi):
         dem = dem.subtract(geoid)
     dem = dem.set({'vertical_datum': 'EGM96 geoid'})
 
+    # Save to Google Drive if specified
+    if folder and rgi_id:
+        file_name_prefix = f"{rgi_id}_{dem_name.replace(" ","")}_cropped"
+        print(f"Exporting cropped DEM to: {folder}/{file_name_prefix}")
+        task = ee.batch.Export.image.toDrive(
+            image = dem,
+            description = file_name_prefix,
+            folder = folder, 
+            fileNamePrefix = file_name_prefix,
+            scale = 10 if dem_name=="ArcticDEM" else 30,
+            region = aoi,
+            fileFormat='GeoTIFF'
+        )
+        task.start()
+
     return dem
 
 
-def split_date_range(aoi_area, dataset, date_start, date_end, month_start, month_end):
+def split_date_range(aoi_area, dataset, date_start, date_end, month_start, month_end, verbose):
     """
     Split a date range into smaller chunks to mitigate computation time-out based on the area of the AOI:
         - AOI < 500 km2: split by month
@@ -143,7 +162,8 @@ def split_date_range(aoi_area, dataset, date_start, date_end, month_start, month
 
     # Determine splitting strategy
     if aoi_area < 150e6:
-        print('AOI area < 150 km2 — splitting date range by month.')
+        if verbose:
+            print('AOI area < 150 km2 — splitting date range by month.')
         for year in range(date_start.year, date_end.year + 1):
             for month in range(month_start, month_end+1):
                 if (year == date_start.year and month < month_start) or (year == date_end.year and month > month_end):
@@ -178,14 +198,16 @@ def split_date_range(aoi_area, dataset, date_start, date_end, month_start, month
     #         current += datetime.timedelta(days=7)
 
     else:
-        print('AOI >= 150 km2 — splitting date range by day.')
+        if verbose:
+            print('AOI >= 150 km2 — splitting date range by day.')
         current = max(date_start, datetime.date(date_start.year, month_start, 1))
         while current < date_end:
             if month_start <= current.month <= month_end:
                 ranges.append((current.isoformat(), (current + datetime.timedelta(days=1)).isoformat()))
             current += datetime.timedelta(days=1)
 
-    print(f"Number of date ranges = {len(ranges)}")
+    if verbose:
+        print(f"Number of date ranges = {len(ranges)}")
 
     return ranges
 
@@ -421,14 +443,16 @@ def classify_image_collection(collection: ee.ImageCollection,
     return ee.ImageCollection(classified_collection)
 
 
-def calculate_snow_cover_statistics(image_collection: ee.ImageCollection, 
-                                    dem: ee.Image, 
-                                    aoi: ee.Geometry.Polygon, 
-                                    dataset: str,
-                                    scale: int = None,
-                                    out_folder: str = 'glacier_snow_cover_exports', 
-                                    file_name_prefix: str = f'snow_cover_stats_{current_datetime_str}',
-                                    verbose: bool = True):
+def calculate_snow_cover_statistics(
+        image_collection: ee.ImageCollection, 
+        dem: ee.Image, 
+        aoi: ee.Geometry.Polygon, 
+        dataset: str,
+        scale: int = None, 
+        out_folder: str = 'glacier_snow_cover_exports', 
+        file_name_prefix: str = None,
+        verbose: bool = True
+        ):
     """
     Calculate snow cover statistics for each image in the collection. The function will calculate the following
     statistics for each image: snow area, ice area, rock area, water area, glacier area, transient AAR, SLA,
@@ -455,6 +479,12 @@ def calculate_snow_cover_statistics(image_collection: ee.ImageCollection,
     """
     if verbose:
         print('Calculating snow cover statistics')
+
+    if file_name_prefix==None:
+        # Grab current datetime for default file name
+        current_datetime = datetime.datetime.now()
+        current_datetime_str = str(current_datetime).replace(' ','').replace(':','').replace('-','').replace('.','')
+        file_name_prefix = f"snow_cover_stats_{current_datetime_str}"
 
     # Determine spatial scale
     if not scale:
@@ -601,14 +631,14 @@ def calculate_snow_cover_statistics(image_collection: ee.ImageCollection,
         return in_queue
     
     # wait until task queue is < 3000
-    queue = check_queue() # check length of queue
-    while queue >= 2998: # while it's 3000 or more
-        #estimate processing time & wait for that long
-        sleep_time = 30*int(np.sqrt(aoi.area().getInfo()/1e6))
-        print(f"sleep time = {sleep_time} s")
+    # queue = check_queue() # check length of queue
+    # while queue >= 2998: # while it's 3000 or more
+    #     #estimate processing time & wait for that long
+    #     sleep_time = 30*int(np.sqrt(aoi.area().getInfo()/1e6))
+    #     print(f"sleep time = {sleep_time} s")
         
-        time.sleep(sleep_time) # wait specified time in seconds based on glacier area
-        queue = check_queue() # keep checking
+    #     time.sleep(sleep_time) # wait specified time in seconds based on glacier area
+    #     queue = check_queue() # keep checking
         
     task.start()
 
@@ -676,7 +706,8 @@ def run_classification_pipeline(aoi: ee.Geometry.Polygon = None,
         )
     
     # Determine spatial scale
-    scale = 30 if (dataset=='Landsat') else 10
+    if not scale:
+        scale = 30 if (dataset=='Landsat') else 10
     # if aoi_area > 200e6:
     #     if aoi_area < 500e6:
     #         scale = 30
@@ -694,13 +725,14 @@ def run_classification_pipeline(aoi: ee.Geometry.Polygon = None,
     #     scale = 30 if (dataset=='Landsat') else 10
 
     # Split date range into smaller date ranges as necessary
-    date_ranges = split_date_range(aoi_area, dataset, date_start, date_end, month_start, month_end)
+    date_ranges = split_date_range(aoi_area, dataset, date_start, date_end, month_start, month_end, verbose=verbose)
     
     # Run the workflow for each day in date range separately
-    print(f'Exporting snow cover statistics to {out_folder} Google Drive folder with file naming convention:', 
-          f"{glac_id}_{dataset}_snow_cover_stats_DATE-START_DATE-END.csv")
-    print('To monitor export tasks, see your Google Cloud Console or GEE Task Manager: https://code.earthengine.google.com/tasks')
-    print('Iterating over date ranges...')
+    if verbose:
+        print(f'Exporting snow cover statistics to {out_folder} Google Drive folder with file naming convention:', 
+              f"{glac_id}_{dataset}_snow_cover_stats_DATE-START_DATE-END.csv")
+        print('To monitor export tasks, see your Google Cloud Console or GEE Task Manager: https://code.earthengine.google.com/tasks')
+        print('Iterating over date ranges...')
     for date_range in tqdm(date_ranges):
     
         # Query GEE for imagery
