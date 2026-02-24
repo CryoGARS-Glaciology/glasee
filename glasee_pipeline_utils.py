@@ -88,7 +88,7 @@ def query_gee_for_dem(
 
     # Save to Google Drive if specified
     if folder and rgi_id:
-        file_name_prefix = f"{rgi_id}_{dem_name.replace(" ","")}_cropped"
+        file_name_prefix = f"{rgi_id}_{dem_name.replace(' ','')}_cropped"
         print(f"Exporting cropped DEM to: {folder}/{file_name_prefix}")
         task = ee.batch.Export.image.toDrive(
             image = dem,
