@@ -742,6 +742,7 @@ def run_classification_pipeline(aoi: ee.Geometry.Polygon = None,
     date_ranges = split_date_range(aoi_area, dataset, date_start, date_end, month_start, month_end, verbose=verbose)
     
     # Run the workflow for each day in date range separately
+    im_count = 1
     if verbose:
         print(f'Exporting snow cover statistics to {out_folder} Google Drive folder with file naming convention:', 
               f"{glac_id}_{dataset}_snow_cover_stats_DATE-START_DATE-END.csv")
